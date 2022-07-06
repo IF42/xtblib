@@ -1,0 +1,2 @@
+test.o: test/test.c
+xtb.o: src/xtb.c src/xtb.h
