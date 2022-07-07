@@ -29,10 +29,10 @@ all: env $(MODULES)
 exec: all
 	$(OUTPUT)/$(TARGET)
 
-
-test: env $(TEST)
+build_test: env $(TEST)
 	$(CC) $(CFLAGS) $(TEST) $(LIBS) -o $(OUTPUT)/test
 
+test: build_test
 	$(OUTPUT)/test
 
 

@@ -12,9 +12,56 @@
 #ifndef _XTB_H_
 #define _XTB_H_
 
-#include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
+
+
+#define LOGIN_TIMEOUT 120
+#define MAX_TIME_INTERVAL 0.200
+
+
+typedef enum
+{
+    NOT_LOGGED
+    , LOGGED
+}Status;
+
+
+typedef enum
+{
+    BUY
+    , SELL
+    , BUY_LIMIT 
+    , SELL_LIMIT
+    , BUY_STOP
+    , SELL_STOP
+    , BALANCE
+    , CREDIT
+}Modes;
+
+
+typedef enum
+{
+    OPEN
+    , PENDING
+    , CLOSE
+    , MODIFY
+    , DELETE
+}TransType;
+
+
+typedef enum
+{
+    ONE_MINUTE = 1
+    , FIVE_MINUTES = 5
+    , FIFTEEN_MINUTES = 15
+    , THIRTY_MINUTES = 30
+    , ONE_HOUR = 60
+    , FOUR_HOURS = 240
+    , ONE_DAY = 1440
+    , ONE_WEEK = 10080
+    , ONE_MONTH = 43200
+}Period;
 
 
 /**
@@ -39,10 +86,34 @@ struct Client;
 typedef struct Client Client;
 
 
+
+typedef enum
+{
+   ClientAllocationError
+   , ClientConnectionError
+}ClientInitStatus;
+
+
+typedef struct
+{
+    bool is_value;
+
+    union
+    {
+        ClientInitStatus right;
+        Client * left;    
+    }value;
+}EitherClient;
+
+
+#define EitherClientRight(T) (EitherClient) {.is_value = false, .value.right = T}
+#define EitherClientLeft(T) (EitherClient) {.is_value = true, .value.left = T}
+
+
 /**
 ** @brief 
 */
-Client * 
+EitherClient 
 client_new();
 
 
