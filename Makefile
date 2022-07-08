@@ -5,6 +5,10 @@ LIBS = $$(pkg-config --libs json-c openssl) -lws2_32
 TARGET = libxtb.a
 OUTPUT = release
 
+ID=
+PASS=
+
+
 INCLUDE_PATH = /usr/include
 LIB_PATH = /usr/lib64
 
@@ -33,7 +37,7 @@ build_test: env $(TEST)
 	$(CC) $(CFLAGS) $(TEST) $(LIBS) -o $(OUTPUT)/test
 
 test: build_test
-	$(OUTPUT)/test
+	$(OUTPUT)/test $(ID) $(PASS)
 
 
 .PHONY: env dep clean install
