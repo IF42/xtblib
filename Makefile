@@ -1,12 +1,12 @@
-CC=gcc
-CFLAGS=-Wall -Wextra -pedantic -std=c18 -O3
-LIBS=
+CC = gcc
+CFLAGS = -Wall -Wextra -pedantic -std=c18 -O3 $$(pkg-config --cflags json-c openssl)
+LIBS = $$(pkg-config --libs json-c openssl) -lws2_32
 
-TARGET=libxtb.a
-OUTPUT=release
+TARGET = libxtb.a
+OUTPUT = release
 
-INCLUDE_PATH=/usr/include
-LIB_PATH=/usr/lib64
+INCLUDE_PATH = /usr/include
+LIB_PATH = /usr/lib64
 
 MODULES += xtb.o
 

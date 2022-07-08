@@ -19,6 +19,12 @@
 #define LOGIN_TIMEOUT 120
 #define MAX_TIME_INTERVAL 0.200
 
+typedef enum
+{
+    demo
+    , real
+}AccountMode;
+
 
 typedef enum
 {
@@ -77,21 +83,21 @@ typedef struct
 /**
 ** @brief
 */
-struct Client;
+struct XTB_Client;
 
 
 /**
 ** @brief
 */
-typedef struct Client Client;
+typedef struct XTB_Client XTB_Client;
 
 
 
 typedef enum
 {
-   ClientAllocationError
-   , ClientConnectionError
-}ClientInitStatus;
+   XTB_ClientAllocationError
+   , XTB_ClientSSLInitError
+}XTB_ClientInitStatus;
 
 
 typedef struct
@@ -100,38 +106,39 @@ typedef struct
 
     union
     {
-        ClientInitStatus right;
-        Client * left;    
+        XTB_ClientInitStatus right;
+        XTB_Client * left;    
     }value;
-}EitherClient;
+}EitherXTB_Client;
 
 
-#define EitherClientRight(T) (EitherClient) {.is_value = false, .value.right = T}
-#define EitherClientLeft(T) (EitherClient) {.is_value = true, .value.left = T}
+#define EitherXTB_ClientRight(T) (EitherXTB_Client) {.is_value = false, .value.right = T}
+#define EitherXTB_ClientLeft(T) (EitherXTB_Client) {.is_value = true, .value.left = T}
 
 
 /**
 ** @brief 
 */
-EitherClient 
-client_new();
+EitherXTB_Client 
+xtb_client_new();
 
 
 /**
 ** @brief
 */
 bool
-client_login(
-    Client * self
+xtb_client_login(
+    XTB_Client * self
     , char * username
-    , char * password);
+    , char * password
+    , AccountMode mode);
 
 
 /**
 **
 */
 void
-client_logout(Client * self);
+xtb_client_logout(XTB_Client * self);
 
 
 
@@ -139,7 +146,7 @@ client_logout(Client * self);
 ** @brief
 */
 void
-client_delete(Client * self);
+xtb_client_delete(XTB_Client * self);
 
 
 

@@ -2,6 +2,7 @@
 *.d
 *.swp
 release
+*~
 
 # Object files
 *.o
