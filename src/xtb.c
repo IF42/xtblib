@@ -13,6 +13,9 @@
 #if defined(__linux__)
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <netdb.h>
+#include <fcntl.h>
+#include <sys/time.h>
 #elif defined(_WIN32)
 #include<winsock2.h>
 #endif
@@ -22,6 +25,7 @@
 #include <openssl/err.h>
 
 #include <json.h>
+
 
 #define XTB_NO_EXPORT static
 
@@ -33,84 +37,20 @@
 #define XTB_API_ADDRESS "xapi.xtb.com"
 
 
-typedef struct
-{
-    int socket;
-    int fd;
-}Connection;
-
-
 struct XTB_Client
 {
-    Status    status;
+    Client_Status status;
+
+    int socket;
+    int fd;
 
     SSL_CTX * ctx;
     SSL *     ssl;
-
-    Connection connection;
 };
 
 
-typedef struct
-{
-    bool is_value;
-    Connection just;
-}MaybeConnection;
-
-
-#define MaybeConnectionJust(T) (MaybeConnection) {.is_value = true, .just = T}
-#define MaybeConnectionNothing (MaybeConnection) {.is_value = false}
-
-
-XTB_NO_EXPORT MaybeConnection
-_xtb_client_create_connection(
-    const char * address
-    , uint16_t port)
-{
-    Connection connection;
-
-#if defined (_WIN32)
-    WSADATA wsa;
-
-    if (WSAStartup(MAKEWORD(2,2),&wsa) != 0)
-        return MaybeConnectionNothing;
-#endif
-
-    if ((connection.socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
-        return MaybeConnectionNothing;
-
-    struct hostent * he;
-
-    if ((he = gethostbyname(address)) == NULL)
-        return MaybeConnectionNothing;
-
-    struct in_addr ** addr_list = (struct in_addr **) he->h_addr_list;
-
-    for(int i = 0; addr_list[i] != NULL; i++)
-    {
-        struct sockaddr_in serv_addr = 
-            {
-                .sin_family = AF_INET
-                , .sin_port = htons(port)
-                , .sin_addr.s_addr = inet_addr(inet_ntoa(*addr_list[i]))
-            };
-
-        if ((connection.fd = 
-                connect(
-                    connection.socket
-                    , (struct sockaddr *) &serv_addr
-                    , sizeof(serv_addr))) >= 0) 
-        {
-            return MaybeConnectionJust(connection);
-        }
-    }
-
-    return MaybeConnectionNothing;
-}
-
-
 XTB_NO_EXPORT SSL_CTX * 
-_xtb_client_init_CTX(void)
+init_CTX(void)
 {
     OpenSSL_add_all_algorithms(); 
     SSL_load_error_strings();   
@@ -122,26 +62,88 @@ _xtb_client_init_CTX(void)
 }
 
 
+#define E_XTB_Client_Right(T) \
+    (E_XTB_Client) {.id = Either_Right, .value.right = T}
+
+
+#define E_XTB_Client_Left(T) \
+    (E_XTB_Client) {.id = Either_Left, .value.left = T}
+
+
 E_XTB_Client 
-xtb_client_new()
+xtb_client_new(AccountMode mode)
 {
     XTB_Client * self = malloc(sizeof(XTB_Client));
 
     if(self == NULL)
-        return E_XTB_Client_Right(XTB_ClientAllocationError);
+        return E_XTB_Client_Right(XTB_Client_AllocationError);
 
-    self->status = NOT_LOGGED;
-    
+    self->status = CLIENT_NOT_LOGGED;
+
     SSL_library_init();
-    self->ctx = _xtb_client_init_CTX();
+    self->ctx = init_CTX();
 
     if(self->ctx == NULL)
-        return E_XTB_Client_Right(XTB_ClientSSLInitError);
+        return E_XTB_Client_Right(XTB_Client_SSLInitError);
 
     self->ssl = SSL_new(self->ctx);
-    self->connection = (Connection) {0};
 
-    return E_XTB_Client_Left(self);
+#if defined (_WIN32)
+    WSADATA wsa;
+
+    if (WSAStartup(MAKEWORD(2,2),&wsa) != 0)
+    {
+        //TODO: release
+    }
+#endif
+
+    if ((self->socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
+    {
+        //TODO: release
+    }
+
+    /*
+    ** translation of domain name into IP address
+    */ 
+    struct hostent *he;
+
+    if ((he = gethostbyname(XTB_API_ADDRESS)) == NULL)
+    {
+        //TODO: release;
+    }
+
+    struct in_addr ** addr_list = (struct in_addr **) he->h_addr_list;
+
+    for(int i = 0; addr_list[i] != NULL; i++)
+    {
+        struct sockaddr_in serv_addr = 
+        {
+            .sin_family = AF_INET
+                , .sin_port = htons(mode == real ? SOCKET_PORT_REAL : SOCKET_PORT_DEMO)
+                , .sin_addr.s_addr = inet_addr(inet_ntoa(*addr_list[i]))
+        };
+
+        if ((self->fd = connect(
+                            self->socket
+                            , (struct sockaddr*) &serv_addr
+                            , sizeof(serv_addr))) >= 0) 
+        {
+            struct timeval timeout = 
+                {
+                    .tv_sec = 0
+                    , .tv_usec = MAX_TIME_INTERVAL
+                };
+
+            setsockopt(self->fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+
+            SSL_set_fd(self->ssl, self->socket);    
+            SSL_connect(self->ssl);
+
+            return E_XTB_Client_Left(self);
+        }
+    }
+
+    return E_XTB_Client_Right(XTB_Client_NetworkError);
 }
 
 
@@ -149,34 +151,17 @@ bool
 xtb_client_login(
     XTB_Client * self
     , char * username
-    , char * password
-    , AccountMode mode)
+    , char * password)
 {
-    if(self->connection.fd <= 0)
-    {
-        MaybeConnection m = 
-            _xtb_client_create_connection(
-                XTB_API_ADDRESS
-                , mode == real ? SOCKET_PORT_REAL : SOCKET_PORT_DEMO);
-
-        if(m.is_value == false)
-            return false;
-
-        self->connection = m.just;
-    }
-
-    SSL_set_fd(self->ssl, self->connection.socket);    
-
-    if (SSL_connect(self->ssl) <= 0)
-        return false;
-
     char login_str[128];
 
-    snprintf(login_str, 127, "{\"command\": \"login\", \"arguments\": {\"userId\": \"%s\", \"password\": \"%s\"}}", username, password);
+    snprintf(
+        login_str, 127
+        , "{\"command\": \"login\", \"arguments\": {\"userId\": \"%s\", \"password\": \"%s\"}}"
+        , username
+        , password);
 
-    printf("%s\n", login_str);
-
-    char resp[512];    
+    char resp[512] = {0};    
 
     if(SSL_write(self->ssl, login_str, strlen(login_str))<= 0)
         return false;
@@ -184,7 +169,16 @@ xtb_client_login(
     if(SSL_read(self->ssl, resp, 511) <= 0)
         return false;
 
+    self->status = CLIENT_LOGGED;    
+
     return true;
+}
+
+
+bool
+xtb_client_connected(XTB_Client * self)
+{
+    return self->status == CLIENT_LOGGED;
 }
 
 
@@ -292,7 +286,8 @@ xtb_client_get_all_symbols(XTB_Client * self)
 
         for(size_t i = 0; i < VECTOR(symbols)->length; i++)
         {
-            struct json_object * symbol_record = json_object_array_get_idx(returnData, i);
+            struct json_object * symbol_record = 
+                json_object_array_get_idx(returnData, i);
 
             json_object_object_get_ex(symbol_record, "ask", &ask);
             json_object_object_get_ex(symbol_record, "bid", &bid);
@@ -413,31 +408,30 @@ xtb_client_logout(XTB_Client * self)
 
     if(SSL_read(self->ssl, resp, 511) <= 0)
         return;
-    
 
-    printf("logout: %s\n", resp);
+    self->status = CLIENT_NOT_LOGGED;
 }
 
 
 void
 xtb_client_delete(XTB_Client * self)
 {
-    if(self != NULL)
-    {
-        if(self->status == LOGGED)
-            xtb_client_logout(self);
+    if(self == NULL)
+        return;
 
-        if(self->ssl != NULL)
-             SSL_free(self->ssl); 
+    if(self->status == CLIENT_LOGGED)
+        xtb_client_logout(self);
 
-        if(self->connection.fd > 0)
-            close(self->connection.fd);
+    if(self->ssl != NULL)
+         SSL_free(self->ssl); 
 
-        if(self->ctx != NULL)
-            SSL_CTX_free(self->ctx);
+    if(self->fd > 0)
+        close(self->fd);
 
-        free(self);
-    }    
+    if(self->ctx != NULL)
+        SSL_CTX_free(self->ctx);
+
+    free(self); 
 }
 
 

@@ -32,9 +32,9 @@ typedef enum
 
 typedef enum
 {
-    NOT_LOGGED
-    , LOGGED
-}Status;
+    CLIENT_NOT_LOGGED
+    , CLIENT_LOGGED
+}Client_Status;
 
 
 typedef enum
@@ -98,9 +98,10 @@ typedef struct XTB_Client XTB_Client;
 
 typedef enum
 {
-   XTB_ClientAllocationError
-   , XTB_ClientSSLInitError
-}XTB_ClientInitStatus;
+   XTB_Client_AllocationError
+   , XTB_Client_SSLInitError
+   , XTB_Client_NetworkError
+}XTB_Client_Status;
 
 
 typedef enum
@@ -115,24 +116,17 @@ typedef struct
 
     union
     {
-        XTB_ClientInitStatus right;
+        XTB_Client_Status right;
         XTB_Client * left;    
     }value;
 }E_XTB_Client;
-
-
-#define E_XTB_Client_Right(T) \
-    (E_XTB_Client) {.id = Either_Right, .value.right = T}
-
-#define E_XTB_Client_Left(T) \
-    (E_XTB_Client) {.id = Either_Left, .value.left = T}
 
 
 /**
 ** @brief 
 */
 E_XTB_Client 
-xtb_client_new();
+xtb_client_new(AccountMode mode);
 
 
 /**
@@ -142,8 +136,11 @@ bool
 xtb_client_login(
     XTB_Client * self
     , char * username
-    , char * password
-    , AccountMode mode);
+    , char * password);
+
+
+bool
+xtb_client_connected(XTB_Client * self);
 
 
 /**
@@ -223,6 +220,17 @@ typedef struct
 */
 Vector(SymbolRecord) *
 xtb_client_get_all_symbols(XTB_Client * self);
+
+
+typedef struct
+{
+    double close_price;
+    /* TODO: code */
+}TradeRecord;
+
+
+Vector(TradeRecord) *
+xtb_client_get_trades(XTB_Client * self);
 
 
 /**

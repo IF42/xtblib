@@ -1,6 +1,8 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -pedantic -std=c18 -O3 $$(pkg-config --cflags json-c openssl)
-LIBS = $$(pkg-config --libs json-c openssl) -lws2_32 -L/mingw64/lib/ -l:libvector.so
+LIBS = $$(pkg-config --libs json-c openssl)  -L/mingw64/lib/ -l:libvector.so
+
+#-lws2_32
 
 TARGET = libxtb.a
 CACHE = .cache
