@@ -14,10 +14,14 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <vector.h>
+#include <ndarray.h>
+#include <time.h>
 
 
 #define LOGIN_TIMEOUT 120
 #define MAX_TIME_INTERVAL 0.200
+
 
 typedef enum
 {
@@ -92,7 +96,6 @@ struct XTB_Client;
 typedef struct XTB_Client XTB_Client;
 
 
-
 typedef enum
 {
    XTB_ClientAllocationError
@@ -100,26 +103,35 @@ typedef enum
 }XTB_ClientInitStatus;
 
 
+typedef enum
+{
+    Either_Left
+   , Either_Right
+}Either_ID;
+
 typedef struct
 {
-    bool is_value;
+    Either_ID id;
 
     union
     {
         XTB_ClientInitStatus right;
         XTB_Client * left;    
     }value;
-}EitherXTB_Client;
+}E_XTB_Client;
 
 
-#define EitherXTB_ClientRight(T) (EitherXTB_Client) {.is_value = false, .value.right = T}
-#define EitherXTB_ClientLeft(T) (EitherXTB_Client) {.is_value = true, .value.left = T}
+#define E_XTB_Client_Right(T) \
+    (E_XTB_Client) {.id = Either_Right, .value.right = T}
+
+#define E_XTB_Client_Left(T) \
+    (E_XTB_Client) {.id = Either_Left, .value.left = T}
 
 
 /**
 ** @brief 
 */
-EitherXTB_Client 
+E_XTB_Client 
 xtb_client_new();
 
 
@@ -140,6 +152,77 @@ xtb_client_login(
 void
 xtb_client_logout(XTB_Client * self);
 
+
+typedef struct
+{
+    bool is_value;
+    int32_t value;
+}O_Int;
+
+
+typedef struct
+{
+    bool is_value;
+    time_t value;
+}O_Time;
+
+
+typedef struct
+{
+    double ask;
+	double bid;
+	char categoryName[64];
+	int32_t contractSize;
+	char currency[16];
+	bool currencyPair;
+	char currencyProfit[16];
+	char description[16];
+	O_Time expiration;
+	char groupName[16];
+	double high;
+	int32_t initialMargin;
+	int32_t instantMaxVolume;
+	double leverage;
+	bool longOnly;
+	double lotMax;
+	double lotMin;
+	double lotStep;
+	double low;
+	int32_t marginHedged;
+	bool marginHedgedStrong;
+	O_Int marginMaintenance;
+	int32_t marginMode;
+	double percentage;
+    int32_t pipsPrecision;
+	int32_t precision;
+	int32_t profitMode;
+	int32_t quoteId;
+	bool shortSelling;
+	double spreadRaw;
+	double spreadTable;
+	O_Time starting;
+	int32_t stepRuleId;
+	int32_t stopsLevel;
+	int32_t swap_rollover3days;
+	bool swapEnable;
+	double swapLong;
+	double swapShort;
+	int32_t swapType;
+	char symbol[36];
+	double tickSize;
+	double tickValue;
+	time_t time;
+	char timeString[64];
+	bool trailingEnabled;
+	int32_t type;
+}SymbolRecord;
+
+
+/**
+** @brief 
+*/
+Vector(SymbolRecord) *
+xtb_client_get_all_symbols(XTB_Client * self);
 
 
 /**

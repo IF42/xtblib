@@ -21,9 +21,14 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
+#include <json.h>
+
+#define XTB_NO_EXPORT static
+
 
 #define SOCKET_PORT_DEMO 5124
 #define SOCKET_PORT_REAL 5112
+
 
 #define XTB_API_ADDRESS "xapi.xtb.com"
 
@@ -37,10 +42,10 @@ typedef struct
 
 struct XTB_Client
 {
-    Status status;
+    Status    status;
 
-    SSL_CTX *ctx;
-    SSL *ssl;
+    SSL_CTX * ctx;
+    SSL *     ssl;
 
     Connection connection;
 };
@@ -57,52 +62,7 @@ typedef struct
 #define MaybeConnectionNothing (MaybeConnection) {.is_value = false}
 
 
-static int 
-_xtb_client_receive(
-    int hSocket
-    , char* Rsp
-    , short RvcSize);
-
-
-static int 
-_xtb_client_send(
-    int hSocket
-    , char* Rqst
-    , short lenRqst);
-
-
-MaybeConnection
-_xtb_client_create_connection(
-    const char * address
-    , uint16_t port);
-
-static SSL_CTX * 
-_xtb_client_init_CTX(void);
-
-
-EitherXTB_Client 
-xtb_client_new()
-{
-    XTB_Client * self = malloc(sizeof(XTB_Client));
-
-    if(self == NULL)
-        return EitherXTB_ClientRight(XTB_ClientAllocationError);
-
-    self->status = NOT_LOGGED;
-    
-    SSL_library_init();
-    self->ctx = _xtb_client_init_CTX();
-
-    if(self->ctx == NULL)
-        return EitherXTB_ClientRight(XTB_ClientSSLInitError);
-
-    self->ssl = SSL_new(self->ctx);
-    self->connection = (Connection) {0};
-
-    return EitherXTB_ClientLeft(self);
-}
-
-MaybeConnection
+XTB_NO_EXPORT MaybeConnection
 _xtb_client_create_connection(
     const char * address
     , uint16_t port)
@@ -113,63 +73,43 @@ _xtb_client_create_connection(
     WSADATA wsa;
 
     if (WSAStartup(MAKEWORD(2,2),&wsa) != 0)
-    {
-        printf("Failed. Error Code : %d",WSAGetLastError());
-        
         return MaybeConnectionNothing;
-    }
 #endif
 
-    printf("connection start\n");
     if ((connection.socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
-    {
-        printf("Could not create socket : %d\n" , WSAGetLastError());
         return MaybeConnectionNothing;
-    }
 
-    //u_long mode = 1;  // 1 to enable non-blocking socket
-    //ioctlsocket(connection.socket, FIONBIO, &mode);
+    struct hostent * he;
 
-    printf("connection to: %s\n", address);
-
-    struct hostent *he;
-
-    if ( (he = gethostbyname(address) ) == NULL)
-    {
-        printf("Cant convert host name to ip address!\n");
+    if ((he = gethostbyname(address)) == NULL)
         return MaybeConnectionNothing;
-    }
 
-    struct in_addr **addr_list = (struct in_addr **) he->h_addr_list;
+    struct in_addr ** addr_list = (struct in_addr **) he->h_addr_list;
 
     for(int i = 0; addr_list[i] != NULL; i++)
     {
-        printf("%s\n", inet_ntoa(*addr_list[i]) );
-
         struct sockaddr_in serv_addr = 
-        {
-            .sin_family = AF_INET
-            , .sin_port = htons(port)
-            , .sin_addr.s_addr = inet_addr(inet_ntoa(*addr_list[i]))
-        };
+            {
+                .sin_family = AF_INET
+                , .sin_port = htons(port)
+                , .sin_addr.s_addr = inet_addr(inet_ntoa(*addr_list[i]))
+            };
 
         if ((connection.fd = 
                 connect(
                     connection.socket
-                    , (struct sockaddr*) &serv_addr
+                    , (struct sockaddr *) &serv_addr
                     , sizeof(serv_addr))) >= 0) 
         {
             return MaybeConnectionJust(connection);
         }
     }
 
-    printf("not connected: %d\n", connection.fd);
-
     return MaybeConnectionNothing;
 }
 
 
- SSL_CTX * 
+XTB_NO_EXPORT SSL_CTX * 
 _xtb_client_init_CTX(void)
 {
     OpenSSL_add_all_algorithms(); 
@@ -179,6 +119,29 @@ _xtb_client_init_CTX(void)
     SSL_CTX *ctx = SSL_CTX_new(method);   
 
     return ctx;
+}
+
+
+E_XTB_Client 
+xtb_client_new()
+{
+    XTB_Client * self = malloc(sizeof(XTB_Client));
+
+    if(self == NULL)
+        return E_XTB_Client_Right(XTB_ClientAllocationError);
+
+    self->status = NOT_LOGGED;
+    
+    SSL_library_init();
+    self->ctx = _xtb_client_init_CTX();
+
+    if(self->ctx == NULL)
+        return E_XTB_Client_Right(XTB_ClientSSLInitError);
+
+    self->ssl = SSL_new(self->ctx);
+    self->connection = (Connection) {0};
+
+    return E_XTB_Client_Left(self);
 }
 
 
@@ -197,11 +160,7 @@ xtb_client_login(
                 , mode == real ? SOCKET_PORT_REAL : SOCKET_PORT_DEMO);
 
         if(m.is_value == false)
-        {
-            printf("connection was not established\n");
-
             return false;
-        }
 
         self->connection = m.just;
     }
@@ -220,27 +179,243 @@ xtb_client_login(
     char resp[512];    
 
     if(SSL_write(self->ssl, login_str, strlen(login_str))<= 0)
-    {
-        printf("cant send\n");
         return false;
-    }
 
     if(SSL_read(self->ssl, resp, 511) <= 0)
-    {
-        printf("Cant received nothing\n");
         return false;
-    }
-
-    printf("received:\n%s\n", resp);
 
     return true;
+}
+
+
+Vector(SymbolRecord) *
+xtb_client_get_all_symbols(XTB_Client * self)
+{
+    if (SSL_connect(self->ssl) <= 0)
+        return NULL;
+
+    /*
+    ** sending command to server
+    */
+    const char * cmd = "{\"command\": \"getAllSymbols\"}";
+
+    if(SSL_write(self->ssl, cmd, strlen(cmd)) <= 0)
+        return NULL;
+
+    Vector(char) * input_buffer = vector(char, 1024, free);
+    size_t readed_length        = 0; 
+
+    /*
+    ** reading input stream
+    */
+    while(true)
+    {
+        int16_t input_length = SSL_read(self->ssl, &input_buffer[readed_length], 1023);
+        readed_length       += input_length;
+
+        if(input_length <= 0 
+            || (input_buffer[readed_length-2] == '\n' 
+                && input_buffer[readed_length-1] == '\n'))
+        {
+            break;
+        }
+        else
+        {
+             input_buffer = 
+                 vector_resize(VECTOR(input_buffer), VECTOR(input_buffer)->length + 1024);
+        }
+    }
+
+    /*
+    ** processing of input data
+    */
+    Vector(SymbolRecord) * symbols = NULL;
+
+    struct json_object * status;
+    struct json_object * returnData;
+    struct json_object * record = json_tokener_parse(input_buffer);
+
+    json_object_object_get_ex(record, "status", &status);
+    
+    if(strcmp(json_object_get_string(status), "true") == 0)
+    {
+        json_object_object_get_ex(record, "returnData", &returnData);
+
+        symbols = vector(SymbolRecord, json_object_array_length(returnData), free);
+
+        struct json_object * ask;
+        struct json_object * bid;
+        struct json_object * categoryName;
+        struct json_object * contractSize;
+        struct json_object * currency;
+        struct json_object * currencyPair;
+        struct json_object * currencyProfit;
+        struct json_object * description;
+        struct json_object * expiration;
+        struct json_object * groupName;
+        struct json_object * high;
+        struct json_object * initialMargin;
+        struct json_object * instantMaxVolume;
+        struct json_object * leverage;
+        struct json_object * longOnly;
+        struct json_object * lotMax;
+        struct json_object * lotMin;
+        struct json_object * lotStep;
+        struct json_object * low;
+        struct json_object * marginHedged;
+        struct json_object * marginHedgedStrong;
+        struct json_object * marginMaintenance;
+        struct json_object * marginMode;
+        struct json_object * percentage;
+        struct json_object * pipsPrecision;
+        struct json_object * precision;
+        struct json_object * profitMode;
+        struct json_object * quoteId;
+        struct json_object * shortSelling;
+        struct json_object * spreadRaw;
+        struct json_object * spreadTable;
+        struct json_object * starting;
+        struct json_object * stepRuleId;
+        struct json_object * stopsLevel;
+        struct json_object * swap_rollover3days;
+        struct json_object * swapEnable;
+        struct json_object * swapLong;
+        struct json_object * swapShort;
+        struct json_object * swapType;
+        struct json_object * symbol;
+        struct json_object * tickSize;
+        struct json_object * tickValue;
+        struct json_object * time;
+        struct json_object * timeString;
+        struct json_object * trailingEnabled;
+        struct json_object * type;
+
+        for(size_t i = 0; i < VECTOR(symbols)->length; i++)
+        {
+            struct json_object * symbol_record = json_object_array_get_idx(returnData, i);
+
+            json_object_object_get_ex(symbol_record, "ask", &ask);
+            json_object_object_get_ex(symbol_record, "bid", &bid);
+            json_object_object_get_ex(symbol_record, "categoryName", &categoryName);
+            json_object_object_get_ex(symbol_record, "contractSize", &contractSize);
+            json_object_object_get_ex(symbol_record, "currency", &currency);
+            json_object_object_get_ex(symbol_record, "currencyPair", &currencyPair);
+            json_object_object_get_ex(symbol_record, "currencyProfit", &currencyProfit);
+            json_object_object_get_ex(symbol_record, "description", &description);
+            json_object_object_get_ex(symbol_record, "expiration", &expiration);
+            json_object_object_get_ex(symbol_record, "groupName", &groupName);
+            json_object_object_get_ex(symbol_record, "high", &high);
+            json_object_object_get_ex(symbol_record, "initialMargin", &initialMargin);
+            json_object_object_get_ex(symbol_record, "instantMaxVolume", &instantMaxVolume);
+            json_object_object_get_ex(symbol_record, "leverage", &leverage);
+            json_object_object_get_ex(symbol_record, "longObly", &longOnly);
+            json_object_object_get_ex(symbol_record, "lotMax", &lotMax);
+            json_object_object_get_ex(symbol_record, "lotMin", &lotMin);
+            json_object_object_get_ex(symbol_record, "lotStep", &lotStep);
+            json_object_object_get_ex(symbol_record, "low", &low);
+            json_object_object_get_ex(symbol_record, "marginHedged", &marginHedged);
+            json_object_object_get_ex(symbol_record, "marginHedgedStrong", &marginHedgedStrong);
+            json_object_object_get_ex(symbol_record, "marginMaintenance", &marginMaintenance);
+            json_object_object_get_ex(symbol_record, "marginMode", &marginMode);
+            json_object_object_get_ex(symbol_record, "percentage", &percentage);
+            json_object_object_get_ex(symbol_record, "pipsPrecision", &pipsPrecision);
+            json_object_object_get_ex(symbol_record, "precision", &precision);
+            json_object_object_get_ex(symbol_record, "profitMode", &profitMode);
+            json_object_object_get_ex(symbol_record, "quoteId", &quoteId);
+            json_object_object_get_ex(symbol_record, "shortSelling", &shortSelling);
+            json_object_object_get_ex(symbol_record, "spreadRaw", &spreadRaw);
+            json_object_object_get_ex(symbol_record, "spreadTable", &spreadTable);
+            json_object_object_get_ex(symbol_record, "starting", &starting);
+            json_object_object_get_ex(symbol_record, "stepRuleId", &stepRuleId);
+            json_object_object_get_ex(symbol_record, "stopsLevel", &stopsLevel);
+            json_object_object_get_ex(symbol_record, "swap_rollover3days", &swap_rollover3days);
+            json_object_object_get_ex(symbol_record, "swapEnable", &swapEnable);
+            json_object_object_get_ex(symbol_record, "swapLong", &swapLong);
+            json_object_object_get_ex(symbol_record, "swapShort", &swapShort);
+            json_object_object_get_ex(symbol_record, "swapType", &swapType);
+            json_object_object_get_ex(symbol_record, "symbol", &symbol);
+            json_object_object_get_ex(symbol_record, "tickSize", &tickSize);
+            json_object_object_get_ex(symbol_record, "tickValue", &tickValue);
+            json_object_object_get_ex(symbol_record, "time", &time);
+            json_object_object_get_ex(symbol_record, "timeString", &timeString);
+            json_object_object_get_ex(symbol_record, "trailingEnabled", &trailingEnabled);
+            json_object_object_get_ex(symbol_record, "type", &type);
+
+            symbols[i].ask                = json_object_get_double(ask);
+            symbols[i].bid                = json_object_get_double(bid);
+            strcpy(symbols[i].categoryName, json_object_get_string(categoryName));
+            symbols[i].contractSize       = json_object_get_int(contractSize);
+            strcpy(symbols[i].currency, json_object_get_string(currency));
+            symbols[i].currencyPair       = json_object_get_boolean(currencyPair);
+            strcpy(symbols[i].currencyProfit, json_object_get_string(currencyProfit));
+            strcpy(symbols[i].description, json_object_get_string(description));
+            symbols[i].expiration.is_value = true;
+            symbols[i].expiration.value   = json_object_get_int64(expiration);
+            strcpy(symbols[i].groupName, json_object_get_string(groupName));
+            symbols[i].high               = json_object_get_double(high);
+            symbols[i].initialMargin      = json_object_get_int(initialMargin);
+            symbols[i].instantMaxVolume   = json_object_get_int(instantMaxVolume);
+            symbols[i].leverage           = json_object_get_double(leverage);
+            symbols[i].longOnly           = json_object_get_boolean(longOnly);
+            symbols[i].lotMax             = json_object_get_double(lotMax);
+            symbols[i].lotMin             = json_object_get_double(lotMin);
+            symbols[i].lotStep            = json_object_get_double(lotStep);
+            symbols[i].low                = json_object_get_double(low);
+            symbols[i].marginHedged       = json_object_get_int(marginHedged);
+            symbols[i].marginHedgedStrong = json_object_get_boolean(marginHedgedStrong);
+            symbols[i].marginMaintenance.is_value = true;
+            symbols[i].marginMaintenance.value  = json_object_get_int(marginMaintenance);
+            symbols[i].marginMode         = json_object_get_int(marginMode);
+            symbols[i].percentage         = json_object_get_double(percentage);
+            symbols[i].pipsPrecision      = json_object_get_int(pipsPrecision);
+            symbols[i].precision          = json_object_get_int(precision);
+            symbols[i].profitMode         = json_object_get_int(profitMode);
+            symbols[i].quoteId            = json_object_get_int(quoteId);
+            symbols[i].shortSelling       = json_object_get_boolean(shortSelling);
+            symbols[i].spreadRaw          = json_object_get_double(spreadRaw);
+            symbols[i].spreadTable        = json_object_get_double(spreadTable);
+            symbols[i].starting.is_value  = true;
+            symbols[i].starting.value     = json_object_get_int64(starting);
+            symbols[i].stepRuleId         = json_object_get_int(stepRuleId);
+            symbols[i].stopsLevel         = json_object_get_int(stopsLevel);
+            symbols[i].swap_rollover3days = json_object_get_int(swap_rollover3days);
+            symbols[i].swapEnable         = json_object_get_boolean(swapEnable);
+            symbols[i].swapLong           = json_object_get_double(swapLong);
+            symbols[i].swapShort          = json_object_get_double(swapShort);
+            symbols[i].swapType           = json_object_get_int(swapType);
+            strcpy(symbols[i].symbol, json_object_get_string(symbol));
+            symbols[i].tickSize           = json_object_get_double(tickSize);
+            symbols[i].tickValue          = json_object_get_double(tickValue);
+            symbols[i].time               = json_object_get_int(time);
+            strcpy(symbols[i].timeString, json_object_get_string(timeString));
+            symbols[i].trailingEnabled    = json_object_get_boolean(trailingEnabled);
+            symbols[i].type               = json_object_get_int(symbol_record);
+        }
+    }
+
+    vector_delete(VECTOR(input_buffer));
+
+    return symbols;
 }
 
 
 void
 xtb_client_logout(XTB_Client * self)
 {
-    (void) self;
+    if (SSL_connect(self->ssl) <= 0)
+        return;
+
+    char resp[512] = {0};
+    const char * logout_str = "{\"command\": \"logout\"}";
+
+    if(SSL_write(self->ssl, logout_str, strlen(logout_str)) <= 0)
+        return;
+
+    if(SSL_read(self->ssl, resp, 511) <= 0)
+        return;
+    
+
+    printf("logout: %s\n", resp);
 }
 
 
@@ -266,46 +441,3 @@ xtb_client_delete(XTB_Client * self)
 }
 
 
-static int 
-_xtb_client_send(
-    int hSocket
-    , char* Rqst
-    , short lenRqst)
-{
-    int shortRetval = -1;
-    struct timeval tv =
-    {
-        .tv_sec = 20  /* 2 Secs Timeout */
-        , .tv_usec = 0
-    };
-
-    if(setsockopt(hSocket, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv, sizeof(tv)) < 0)
-        return -1;
-
-    printf("sending...\n");
-    shortRetval = send(hSocket, Rqst, lenRqst, 0);
-
-    return shortRetval;
-}
-
-static int 
-_xtb_client_receive(
-    int hSocket
-    , char* Rsp
-    , short RvcSize)
-{
-    int shortRetval = -1;
-    struct timeval tv = 
-    {
-        .tv_sec = 20  /* 2 Secs Timeout */
-        , .tv_usec = 0
-    };
-
-    if(setsockopt(hSocket, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(tv)) < 0)
-        return -1;
-
-    printf("receiving...\n");
-    shortRetval = recv(hSocket, Rsp, RvcSize, 0);
-
-    return shortRetval;
-}
