@@ -15,7 +15,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <fcntl.h>
-#include <sys/time.h>
+#include <time.h>
 #elif defined(_WIN32)
 #include<winsock2.h>
 #endif
@@ -134,7 +134,7 @@ xtb_client_new(AccountMode mode)
                     , .tv_usec = MAX_TIME_INTERVAL
                 };
 
-            setsockopt(self->fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+            setsockopt(self->fd, SOL_SOCKET, SO_SNDTIMEO, (void*) &timeout, sizeof(timeout));
 
             SSL_set_fd(self->ssl, self->socket);    
             SSL_connect(self->ssl);
@@ -169,6 +169,21 @@ xtb_client_login(
     if(SSL_read(self->ssl, resp, 511) <= 0)
         return false;
 
+    O_Json o_json = json_load_string(resp);
+
+    if(o_json.is_value == false)
+        return false; 
+
+    if(json_lookup(o_json.json, "status").is_value == false 
+        || json_lookup(o_json.json, "status").json->boolean == false)
+    {
+        printf("status: %s\n", json_lookup(o_json.json, "status").json->boolean ? "true" : "false");
+        json_delete(o_json.json);
+
+        return false;
+    }
+
+    json_delete(o_json.json);
     self->status = CLIENT_LOGGED;    
 
     return true;
@@ -182,7 +197,7 @@ xtb_client_connected(XTB_Client * self)
 }
 
 
-Vector(SymbolRecord) *
+
 xtb_client_get_all_symbols(XTB_Client * self)
 {
     if (SSL_connect(self->ssl) <= 0)
@@ -196,7 +211,7 @@ xtb_client_get_all_symbols(XTB_Client * self)
     if(SSL_write(self->ssl, cmd, strlen(cmd)) <= 0)
         return NULL;
 
-    Vector(char) * input_buffer = vector(char, 1024, free);
+    Vector(char) * input_buffer = vector(char, 1024);
     size_t readed_length        = 0; 
 
     /*
@@ -225,6 +240,7 @@ xtb_client_get_all_symbols(XTB_Client * self)
     */
     Vector(SymbolRecord) * symbols = NULL;
 
+#if 0
     struct json_object * status;
     struct json_object * returnData;
     struct json_object * record = json_tokener_parse(input_buffer);
@@ -387,7 +403,7 @@ xtb_client_get_all_symbols(XTB_Client * self)
             symbols[i].type               = json_object_get_int(symbol_record);
         }
     }
-
+#endif
     vector_delete(VECTOR(input_buffer));
 
     return symbols;

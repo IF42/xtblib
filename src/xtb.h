@@ -18,9 +18,7 @@
 #include <ndarray.h>
 #include <time.h>
 
-
-#define LOGIN_TIMEOUT 120
-#define MAX_TIME_INTERVAL 0.200
+#define MAX_TIME_INTERVAL 200
 
 
 typedef enum
@@ -108,11 +106,11 @@ typedef enum
 {
     Either_Left
    , Either_Right
-}Either_ID;
+}E_ID;
 
 typedef struct
 {
-    Either_ID id;
+    E_ID id;
 
     union
     {
