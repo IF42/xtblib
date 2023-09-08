@@ -15,10 +15,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <vector.h>
-#include <ndarray.h>
 #include <time.h>
 
-#define MAX_TIME_INTERVAL 200
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 
 
 typedef enum
@@ -60,46 +60,38 @@ typedef enum
 
 typedef enum
 {
-    ONE_MINUTE = 1
-    , FIVE_MINUTES = 5
+    ONE_MINUTE        = 1
+    , FIVE_MINUTES    = 5
     , FIFTEEN_MINUTES = 15
-    , THIRTY_MINUTES = 30
-    , ONE_HOUR = 60
-    , FOUR_HOURS = 240
-    , ONE_DAY = 1440
-    , ONE_WEEK = 10080
-    , ONE_MONTH = 43200
+    , THIRTY_MINUTES  = 30
+    , ONE_HOUR        = 60
+    , FOUR_HOURS      = 240
+    , ONE_DAY         = 1440
+    , ONE_WEEK        = 10080
+    , ONE_MONTH       = 43200
 }Period;
-
-
-/**
-** @brief
-*/
-typedef struct
-{
-    bool status;
-    char streamSessionId[128];
-}CMDLoginResp;
-
-
-/**
-** @brief
-*/
-struct XTB_Client;
-
-
-/**
-** @brief
-*/
-typedef struct XTB_Client XTB_Client;
 
 
 typedef enum
 {
-   XTB_Client_AllocationError
-   , XTB_Client_SSLInitError
+   XTB_Client_SSLInitError
    , XTB_Client_NetworkError
+   , XTB_Client_LoginError
 }XTB_Client_Status;
+
+
+typedef struct 
+{
+    Client_Status status;
+
+    AccountMode mode;
+    char    * id;
+    char    * password;
+        
+    SSL_CTX * ctx;
+    SSL     * ssl;
+    BIO     * bio;
+}XTB_Client;
 
 
 typedef enum
@@ -108,6 +100,7 @@ typedef enum
    , Either_Right
 }E_ID;
 
+
 typedef struct
 {
     E_ID id;
@@ -115,7 +108,7 @@ typedef struct
     union
     {
         XTB_Client_Status right;
-        XTB_Client * left;    
+        XTB_Client left;    
     }value;
 }E_XTB_Client;
 
@@ -124,56 +117,37 @@ typedef struct
 ** @brief 
 */
 E_XTB_Client 
-xtb_client_new(AccountMode mode);
-
-
-/**
-** @brief
-*/
-bool
-xtb_client_login(
-    XTB_Client * self
-    , char * username
+xtb_client(
+    AccountMode mode
+    , char * id
     , char * password);
-
-
-bool
-xtb_client_connected(XTB_Client * self);
 
 
 /**
 **
 */
 void
-xtb_client_logout(XTB_Client * self);
-
-
-typedef struct
-{
-    bool is_value;
-    int32_t value;
-}O_Int;
-
-
-typedef struct
-{
-    bool is_value;
-    time_t value;
-}O_Time;
+xtb_client_close(XTB_Client * self);
 
 
 typedef struct
 {
     double ask;
 	double bid;
-	char categoryName[64];
+	char categoryName[256];
 	int32_t contractSize;
-	char currency[16];
+	char currency[256];
 	bool currencyPair;
-	char currencyProfit[16];
-	char description[16];
-	O_Time expiration;
-	char groupName[16];
+	char currencyProfit[256];
+	char description[256];
+
+    struct
+    {
+	    bool is_value;
+        time_t value;
+    }expiration;
+
+	char groupName[256];
 	double high;
 	int32_t initialMargin;
 	int32_t instantMaxVolume;
@@ -185,7 +159,13 @@ typedef struct
 	double low;
 	int32_t marginHedged;
 	bool marginHedgedStrong;
-	O_Int marginMaintenance;
+	
+    struct
+    {
+        bool is_value;
+        int32_t value;
+    }marginMaintenance;
+
 	int32_t marginMode;
 	double percentage;
     int32_t pipsPrecision;
@@ -195,7 +175,13 @@ typedef struct
 	bool shortSelling;
 	double spreadRaw;
 	double spreadTable;
-	O_Time starting;
+
+	struct
+    {
+        bool is_value;
+        time_t value;   
+    }starting;
+
 	int32_t stepRuleId;
 	int32_t stopsLevel;
 	int32_t swap_rollover3days;
@@ -203,11 +189,11 @@ typedef struct
 	double swapLong;
 	double swapShort;
 	int32_t swapType;
-	char symbol[36];
+	char symbol[256];
 	double tickSize;
 	double tickValue;
 	time_t time;
-	char timeString[64];
+	char timeString[256];
 	bool trailingEnabled;
 	int32_t type;
 }SymbolRecord;
@@ -229,13 +215,6 @@ typedef struct
 
 Vector(TradeRecord) *
 xtb_client_get_trades(XTB_Client * self);
-
-
-/**
-** @brief
-*/
-void
-xtb_client_delete(XTB_Client * self);
 
 
 

@@ -1,16 +1,18 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -pedantic -std=c18 -O3 $$(pkg-config --cflags openssl)
-LIBS = $$(pkg-config --libs openssl) -ljson -l:libvector.so
+CFLAGS = -Wall -Wextra -pedantic -Ofast $$(pkg-config --cflags openssl)
+LIBS = $$(pkg-config --libs openssl) -ljson
 
 ifeq ($(OS),Windows_NT)
-	LIBS += -lws2_32
+	LIBS += -l:libvector.so 
+else
+	LIBS += -lvector
 endif
 
 TARGET = libxtb.a
 CACHE = .cache
 OUTPUT = $(CACHE)/release
 
-ID = 14497513
+ID = 15074665
 PASS = 4xl74fx0.H
 
 INCLUDE_PATH = /usr/include
