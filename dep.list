@@ -1,2 +1,3 @@
-.cache/test.o: test/test.c test/../src/xtb.h
-.cache/xtb.o: src/xtb.c src/xtb.h
+.cache/test.o: test/test.c test/../src/xtblib.h
+.cache/excp_stack.o: src/excp_stack.c src/excp_stack.h
+.cache/xtblib.o: src/xtblib.c src/xtblib.h

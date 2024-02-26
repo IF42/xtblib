@@ -1,24 +1,24 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -pedantic -Ofast $$(pkg-config --cflags openssl)
-LIBS = $$(pkg-config --libs openssl) -ljson
+CFLAGS = -Wall -Wextra -pedantic -Ofast $$(pkg-config --cflags openssl) -I/usr/include
+LIBS = $$(pkg-config --libs openssl) -lm -lthr -ljson -lvector
 
 ifeq ($(OS),Windows_NT)
-	LIBS += -l:libvector.so 
+	LIBS += 
 else
-	LIBS += -lvector
+	LIBS += 
 endif
 
-TARGET = libxtb.a
+TARGET = libxtblib.a
 CACHE = .cache
 OUTPUT = $(CACHE)/release
 
-ID = 15074665
+ID = 50285159
 PASS = 4xl74fx0.H
 
 INCLUDE_PATH = /usr/include
 LIB_PATH = /usr/lib64
 
-MODULES += xtb.o
+MODULES += xtblib.o
 
 TEST += test.o
 
@@ -47,7 +47,7 @@ exec: env $(OBJ) $(T_OBJ)
 
 
 dep:
-	$(CC) -MM  test/*.c src/*.c  | sed 's|[a-zA-Z0-9_-]*\.o|$(CACHE)/&|' > dep.list
+	$(CC) -MM  test/*.c -g src/*.c | sed 's|[a-zA-Z0-9_-]*\.o|$(CACHE)/&|' > dep.list
 
 
 env:
@@ -57,7 +57,7 @@ env:
 
 install:
 	cp -v $(OUTPUT)/$(TARGET) $(LIB_PATH)/$(TARGET)
-	cp -v src/xtb.h $(INCLUDE_PATH)/xtb.h
+	cp -v src/xtblib.h $(INCLUDE_PATH)/xtblib.h
 
 
 clean: 
