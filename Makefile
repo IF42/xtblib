@@ -19,7 +19,6 @@ INCLUDE_PATH = /usr/include
 LIB_PATH = /usr/lib64
 
 MODULES += xtblib.o
-
 TEST += test.o
 
 

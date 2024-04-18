@@ -20,7 +20,7 @@ typedef struct {
 
 void
 __read_candle_history(XTB_Client * client) {
-    Json * history = xtb_client_get_lastn_candle_history(client, "BITCOIN", PERIOD_M1, 1000);
+    Json * history = xtb_client_get_lastn_candle_history(client, "BITCOIN", XTB_PERIOD_M1, 1000);
 
     if(history != NULL) {
         json_show(history, stdout);
@@ -31,8 +31,8 @@ __read_candle_history(XTB_Client * client) {
 
 void
 __read_candles(XTB_Client * client) {
-    const int num = PERIOD_M5 * 1000;
-    Json * candles    = xtb_client_get_chart_last_request(client, "BITCOIN", PERIOD_M5, time(NULL)-num);
+    const int num = XTB_PERIOD_M5 * 1000;
+    Json * candles    = xtb_client_get_chart_last_request(client, "BITCOIN", XTB_PERIOD_M5, time(NULL)-num);
 
     if(candles != NULL) {
         json_show(candles, stdout);
@@ -57,9 +57,9 @@ void __read_calendar(XTB_Client * client) {
 
 
 void __read_range_chart(XTB_Client * client) {
-    time_t start = time(NULL) - PERIOD_M5 * 5;
+    time_t start = time(NULL) - XTB_PERIOD_M5 * 5;
     time_t end = time(NULL);
-    Json *chart = xtb_client_get_chart_range_request(client, "BITCOIN", PERIOD_M5, start, end, 2);
+    Json *chart = xtb_client_get_chart_range_request(client, "BITCOIN", XTB_PERIOD_M5, start, end, 2);
 
     if(chart != NULL) {
         if(json_is_type(json_lookup(chart, "rateInfos"), JsonArray) == true)
@@ -136,7 +136,7 @@ void __get_symbol(XTB_Client * client) {
 
 
 void __get_news(XTB_Client * client) {
-    Json * news = xtb_client_get_news(client, time(NULL)-(PERIOD_D1*2), 0);
+    Json * news = xtb_client_get_news(client, time(NULL)-(XTB_PERIOD_D1*2), 0);
 
     if(news != NULL) {
         json_show(news, stdout);
@@ -172,7 +172,7 @@ void __get_trades(XTB_Client * client) {
 
 
 void __get_tick_prices(XTB_Client * client) {
-    Json * prices = xtb_client_get_tick_prices(client, 1, (char * []) {"BITCOIN"}, 0, time(NULL)-(PERIOD_M5*60));
+    Json * prices = xtb_client_get_tick_prices(client, 1, (char * []) {"BITCOIN"}, 0, time(NULL)-(XTB_PERIOD_M5*60));
 
     if(prices != NULL) {
         json_show(prices, stdout);
@@ -197,7 +197,7 @@ void __get_trade_records(XTB_Client * client) {
 
 
 void __get_trade_history(XTB_Client * client) {
-    Json * history = xtb_client_get_trade_history(client, time(NULL) - (PERIOD_D1 * 10), 0);
+    Json * history = xtb_client_get_trade_history(client, time(NULL) - (XTB_PERIOD_D1 * 10), 0);
 
     if(history != NULL) {
         //json_show(history, stdout);
@@ -283,7 +283,7 @@ void __find_symbol(XTB_Client * client, char * name) {
 void __trade_transaction(XTB_Client * client) {
     Json * symbol = xtb_client_get_symbol(client, "BITCOIN");
     //Json * server_time = xtb_client_get_server_time(client);
-    Json * result = xtb_client_trade_transaction(client, "BITCOIN", NULL, TransMode_BUY, 0, 0, "595490628", 51794.80, 0, 0, TransType_CLOSE, 0.01);
+    Json * result = xtb_client_trade_transaction(client, "BITCOIN", NULL, XTB_TransMode_BUY, 0, 0, "595490628", 51794.80, 0, 0, XTB_TransType_CLOSE, 0.01);
 
     if(result != NULL) {
         
@@ -321,7 +321,7 @@ void __get_commision_def(XTB_Client * client) {
 
 
 void __open_trade(XTB_Client * client) {
-    Json * result = xtb_client_open_trade(client, "BITCOIN", TransMode_BUY, 0.01, 0, 0);
+    Json * result = xtb_client_open_trade(client, "BITCOIN", XTB_TransMode_BUY, 0.01, 0, 0);
 
     if(result != NULL) {
         json_show(result, stdout);
@@ -335,7 +335,7 @@ void __open_trade(XTB_Client * client) {
 typedef struct {
     char * symbol;
     char * order; 
-    TransMode mode; 
+    XTB_TransMode mode; 
     float price;
     float volume;
 }TradeRecord;
@@ -423,7 +423,6 @@ void __close_all_trade(XTB_Client * client) {
 }
 
 
-
 void
 client_run(XTB_Client * client) {
     if(xtb_client_ping(client) == false)
@@ -468,13 +467,210 @@ client_run(XTB_Client * client) {
     //__get_tradin_hours(client);
     //__check_if_market_open(client);
     //__trade_transaction(client);
-    //__find_symbol(client, "NOVOB.DK");
+    //__find_symbol(client, "EURUSD");
     //__get_step_rules(client);
     //__get_commision_def(client);
     //__open_trade(client);
     //__close_trade(client);
-    __close_all_trade(client);
+    //__close_all_trade(client);
+    //EURUSD
 }
+
+
+#include <time.h>
+
+
+typedef struct {
+    size_t size;
+	size_t capacity;
+	float * bidPrices; // Pole s nejlepšími 5 bid cenami
+    float * bidVolumes; // Pole s odpovídajícími objemy bid cen
+    float * askPrices; // Pole s nejlepšími 5 ask cenami
+    float * askVolumes; // Pole s odpovídajícími objemy ask cen 
+
+	float trend;
+
+	bool open;
+	float profit;
+} Predictor;
+
+
+Predictor predictor_new(size_t size) {
+	return (Predictor) {
+		.size = size
+		, .bidPrices = memset(malloc(sizeof(float) * size), 0, sizeof(float) * size)
+		, .bidVolumes = memset(malloc(sizeof(float) * size), 0, sizeof(float) * size)
+		, .askPrices = memset(malloc(sizeof(float) * size), 0, sizeof(float) * size)
+		, .askVolumes = memset(malloc(sizeof(float) * size), 0, sizeof(float) * size)
+	};
+}
+
+
+void predictor_delete(Predictor * self) {	
+	free(self->bidPrices);
+	free(self->bidVolumes);
+	free(self->askPrices);
+	free(self->askVolumes);
+}
+
+
+float simpleMovingAverage(float *prices, int n) {
+    float sum = 0;
+    for (int i = 0; i < n; i++) {
+        sum += prices[i];
+    }
+    return sum / n;
+}
+
+
+void process_tick_price(void * param, Json * tick) {
+    Predictor * self = param;
+	float bid_price = atof(json_lookup(tick, "bid")->string);
+	float bid_volume = atof(json_lookup(tick, "bidVolume")->string);
+	float ask_price = atof(json_lookup(tick, "ask")->string);
+	float ask_volume = atof(json_lookup(tick, "askVolume")->string);
+
+    if(self->capacity < self->size) {
+        self->bidVolumes[self->capacity] = bid_volume;
+        self->bidPrices[self->capacity] = bid_price;
+        self->askVolumes[self->capacity] = ask_volume;
+        self->askPrices[self->capacity] = ask_price;
+        self->capacity ++;
+    } else {
+        for(size_t i = 0; i < self->size - 1; i++) {
+            self->bidVolumes[i] = self->bidVolumes[i+1];
+            self->bidPrices[i] = self->bidPrices[i+1];
+            self->askVolumes[i] = self->askVolumes[i+1];
+            self->askPrices[i] = self->askPrices[i+1]; 
+        }
+
+        self->bidVolumes[self->size-1] = bid_volume;
+        self->bidPrices[self->size-1] = bid_price;
+        self->askVolumes[self->size-1] = ask_volume;
+        self->askPrices[self->size-1] = ask_price;
+    }
+
+    
+    float m1 = (self->bidPrices[0] + self->askPrices[0]) / 2;
+    float m2 = (self->bidPrices[self->size-1] + self->askPrices[self->size -1]) / 2;
+
+    self->trend = (m2 - m1) / self->size;
+
+    printf("%f - %f / %ld = %f\n", m2, m1, self->size, self->trend);
+
+    json_show(tick, stdout);
+}
+
+
+void process_news(void * param, Json * news) {
+    (void) param;
+    json_show(news, stdout);
+}
+
+
+void process_balance(void * param, Json * balance) {
+    (void) param;
+    json_show(balance, stdout);
+}
+
+
+void process_candle(void * param, Json * candle) {
+    (void) param;
+
+    json_show(candle, stdout);
+}
+
+
+void process_keep_alive(void * param, Json * keep_alive) {
+    (void) param;
+    json_show(keep_alive, stdout);
+}
+
+
+void process_profit(void * param, Json * profit) {
+	Predictor * self = param;
+	float profit_value = atof(json_lookup(profit, "profit")->string);
+	self->profit = profit_value;
+    json_show(profit, stdout);
+}
+
+
+void process_trades(void * param, Json * trades) {
+    (void) param;
+    json_show(trades, stdout);
+}
+
+
+void process_trade_status(void * param, Json * trade_status) {
+    (void) param;
+    json_show(trade_status, stdout);
+}
+
+
+void scalping(XTB_Client * client) {
+    StreamClientCallback callback = {
+        .balance = process_balance
+        , .tick_prices = process_tick_price
+        , .news = process_news
+        , .candle = process_candle
+        , .keep_alive = process_keep_alive
+        , .profit = process_profit
+        , .trades = process_trades
+        , .trade_status = process_trade_status
+    };  
+    
+	time_t start, end;
+    double cpu_time_used;
+    
+	start = time(NULL);
+
+	char * symbol = "ETHEREUM";
+	Predictor predictor = predictor_new(5);
+    XTB_StreamClient * stream_client = xtb_stream_client_new(client, &callback, &predictor);
+
+    xtb_stream_client_subscribe_tick_prices(stream_client, symbol, 0, 0);
+    xtb_stream_client_subscribe_balance(stream_client);
+    xtb_stream_client_subscribe_profits(stream_client);
+    xtb_stream_client_subscribe_trade_status(stream_client);
+
+    for(size_t i = 0; i < 1000; i++) {
+        xtb_stream_client_process(stream_client);
+
+		end = time(NULL);
+
+		cpu_time_used = difftime(end, start) * 1000;
+
+		if(cpu_time_used > 200 && predictor.capacity >= predictor.size) {
+			if(predictor.open == false) {
+				if(predictor.trend > 0.1) {
+					start = time(NULL);
+
+					predictor.open = true;
+					Json * result = xtb_client_open_trade(client, symbol, XTB_TransMode_BUY, 0.1, 0, 0);
+					json_show(result, stdout);
+					json_delete(result);
+				} else if(predictor.trend < -0.1) {
+					start = time(NULL);
+
+					predictor.open = true;
+					Json * result = xtb_client_open_trade(client, symbol, XTB_TransMode_SELL, 0.1, 0, 0);
+					json_show(result, stdout);
+					json_delete(result);
+				}
+			} else {
+				if(predictor.profit > 0.1 || predictor.profit < -40) {
+					predictor.open = false;
+					start = time(NULL);
+					__close_all_trade(client);
+				}
+			}
+		}
+    }
+
+	predictor_delete(&predictor);
+}
+
+
 
 
 #define ID       "15713459"
@@ -482,11 +678,14 @@ client_run(XTB_Client * client) {
 
 
 int main(void) {
-    XTB_Client client = xtb_client_init(AccountMode_Demo, ID, PASSWORD);
+    XTB_Client * client = xtb_client_new(XTB_AccountMode_Demo, ID, PASSWORD);
 
-    if(client.status == CLIENT_LOGGED) {
-        client_run(&client);
-        xtb_client_delete(&client);
+    if(client != NULL && xtb_client_logged(client) == true) {
+        //client_run(client);
+		scalping(client);
+        xtb_client_delete(client);
+    } else {
+        printf("Can't login to XTB\n");
     }
 
     printf("Program exit\n");

@@ -3,6 +3,7 @@
 *.swp
 release
 *~
+*.stackdump
 
 # Object files
 *.o

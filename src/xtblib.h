@@ -18,97 +18,89 @@
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
-
+#include <openssl/bio.h>
 #include <json.h>
 
 #define DEBUG_ENABLE
 
 
-#define XTB_LIB_VERSION 1.0.0
-
-
-typedef enum {
-    AccountMode_Demo
-    , AccountMode_Real
-}AccountMode;
-
-
-typedef enum {
-    CLIENT_NOT_LOGGED
-    , CLIENT_LOGGED
-}XTB_Client_Status;
-
-
-typedef enum {
-    TransMode_BUY
-    , TransMode_SELL
-    , TransMode_BUY_LIMIT 
-    , TransMode_SELL_LIMIT
-    , TransMode_BUY_STOP
-    , TransMode_SELL_STOP
-    , TransMode_BALANCE
-    , TransMode_CREDIT
-}TransMode;
-
-
-typedef enum {
-    TransType_OPEN
-    , TransType_PENDING 
-    , TransType_CLOSE
-    , TransType_MODIFY
-    , TransType_DELETE
-}TransType;
-
-
-typedef enum {
-    PERIOD_M1    = 60
-    , PERIOD_M5  = 300
-    , PERIOD_M15 = 900
-    , PERIOD_M30 = 1800
-    , PERIOD_H1  = 3600
-    , PERIOD_H4  = 14400
-    , PERIOD_D1  = 86400
-    , PERIOD_W1  = 604800
-    , PERIOD_MN  = 2592000
-}Period;
-
-
-typedef struct {
-    XTB_Client_Status status;
-
-    /**
-     * @brief Each streaming command takes as an argument streamSessionId 
-     * which is sent in response message for login command performed in 
-     * main connection. streamSessionId token allows to identify user in 
-     * streaming connection. In one streaming connection multiple commands 
-     * with different streamSessionId can be invoked. It will cause sending 
-     * streaming data for multiple login sessions in one streaming connection. 
-     * streamSessionId is valid until logout command is performed on main 
-     * connection or main connection is disconnected.
-     *
-     * <a href="http://developers.xstore.pro/documentation/#available-streaming-commands">Available streaming commands</a> 
-     */
-    char * stream_session_id;
-    char * id;
-    char * password;
-    AccountMode mode;
-
-    SSL_CTX * ctx;
-    SSL     * ssl;
-    BIO     * bio;
-}XTB_Client;
-
-
-/**
- * @brief 
- */
-XTB_Client xtb_client_init(AccountMode mode, char * id, char * password);
+#define XTB_LIB_VERSION 1.2.0
 
 
 /**
  * @brief
  */
-bool xtb_client_refresh_connection(XTB_Client * self);
+typedef enum {
+    XTB_AccountMode_Demo
+    , XTB_AccountMode_Real
+}XTB_AccountMode;
+
+
+/**
+ * @brief
+ */
+typedef enum {
+    XTB_TransMode_BUY
+    , XTB_TransMode_SELL
+    , XTB_TransMode_BUY_LIMIT 
+    , XTB_TransMode_SELL_LIMIT
+    , XTB_TransMode_BUY_STOP
+    , XTB_TransMode_SELL_STOP
+    , XTB_TransMode_BALANCE
+    , XTB_TransMode_CREDIT
+}XTB_TransMode;
+
+
+/**
+ * @brief
+ */
+typedef enum {
+    XTB_TransType_OPEN
+    , XTB_TransType_PENDING 
+    , XTB_TransType_CLOSE
+    , XTB_TransType_MODIFY
+    , XTB_TransType_DELETE
+}XTB_TransType;
+
+
+/**
+ * @brief
+ */
+typedef enum {
+    XTB_PERIOD_M1    = 60
+    , XTB_PERIOD_M5  = 300
+    , XTB_PERIOD_M15 = 900
+    , XTB_PERIOD_M30 = 1800
+    , XTB_PERIOD_H1  = 3600
+    , XTB_PERIOD_H4  = 14400
+    , XTB_PERIOD_D1  = 86400
+    , XTB_PERIOD_W1  = 604800
+    , XTB_PERIOD_MN  = 2592000
+}XTB_Period;
+
+
+/**
+ * @brief
+ */
+typedef struct XTB_Client XTB_Client;
+
+
+/**
+ * @brief 
+ */
+XTB_Client * xtb_client_new(XTB_AccountMode mode, char * id, char * password);
+
+
+/**
+ * @brief
+ */
+bool xtb_client_logged(XTB_Client * self);
+
+
+/**
+ * @brief
+ */
+size_t xtb_client_stream_session_size(XTB_Client * self);
 
 
 /**
@@ -133,21 +125,21 @@ Json * xtb_client_get_calendar(XTB_Client * self);
  * @brief
  */
 Json * xtb_client_get_chart_last_request(
-    XTB_Client * self, char * symbol, Period period, time_t start);
+    XTB_Client * self, char * symbol, XTB_Period period, time_t start);
 
 
 /**
  * @brief
  */
 Json * xtb_client_get_chart_range_request(
-    XTB_Client * self, char * symbol, Period period, time_t start, time_t end, int32_t tick);
+    XTB_Client * self, char * symbol, XTB_Period period, time_t start, time_t end, int32_t tick);
 
 
 /**
  * @brief
  */
 Json * xtb_client_get_lastn_candle_history(
-    XTB_Client * self, char * symbol, Period period, size_t number);
+    XTB_Client * self, char * symbol, XTB_Period period, size_t number);
 
 
 /*
@@ -178,7 +170,7 @@ Json * xtb_client_get_margin_trade(XTB_Client * self, char * symbol, float volum
  * @brief
  */
 Json * xtb_client_get_profit_calculation(
-    XTB_Client * self, float close_price, TransMode mode, float open_price, char * symbol, float volume);
+    XTB_Client * self, float close_price, XTB_TransMode mode, float open_price, char * symbol, float volume);
 
 
 /*
@@ -267,27 +259,29 @@ Json * xtb_client_trade_transaction(
     XTB_Client * self
     , char * symbol
     , char * custom_comment
-    , TransMode mode
+    , XTB_TransMode mode
     , time_t expriration
     , int offset
     , char * order
     , float price
     , float tp
     , float sl
-    , TransType type
+    , XTB_TransType type
     , float volume);
 
 
 /*
  * @brief
  */
-Json * xtb_client_open_trade(XTB_Client * self, char * symbol, TransMode mode, float volume, float tp, float sl);
+Json * xtb_client_open_trade(
+        XTB_Client * self, char * symbol, XTB_TransMode mode, float volume, float tp, float sl);
 
 
 /*
  * @brief
  */
-Json * xtb_client_close_trade(XTB_Client * self, char * symbol, char * order, TransMode mode, float price, float volume);
+Json * xtb_client_close_trade(
+        XTB_Client * self, char * symbol, char * order, XTB_TransMode mode, float price, float volume);
 
 
 /**
@@ -295,6 +289,161 @@ Json * xtb_client_close_trade(XTB_Client * self, char * symbol, char * order, Tr
  */
 void xtb_client_delete(XTB_Client * self);
 
+
+/*
+ * @brief Streaming client is connection into XTB server for automatic reading of reacent data
+ * This is the fastest way for getting the newst data.
+ *
+ * Every StreamClient command takes as argument streaming_session_id received from loggin to main port. 
+ *
+ * <a href="http://developers.xstore.pro/documentation/#available-streaming-commands">Available streaming commands</a> 
+ *
+ * Main problem of subscribing and unsubcribing of streaming commands is that, there is not 
+ * confimed and only thing that confirm subcription is receiving of given streaming data, but
+ * if the command is wrong, it is hard to detect
+ */
+typedef struct XTB_StreamClient XTB_StreamClient;
+
+
+/*
+ * @brief
+ */
+typedef void (*StreamCallback)(void *, Json *);
+
+
+/**
+ * @brief
+ */
+typedef struct {
+    StreamCallback balance;
+    StreamCallback news;
+    StreamCallback candle;
+    StreamCallback keep_alive;
+    StreamCallback profit;
+    StreamCallback tick_prices;
+    StreamCallback trades;
+    StreamCallback trade_status;
+} StreamClientCallback;
+
+
+/**
+ * @brief
+ */
+XTB_StreamClient * xtb_stream_client_new(XTB_Client * self, StreamClientCallback * callback, void * param);
+
+
+/**
+ * @brief
+ */
+void xtb_stream_client_process(XTB_StreamClient * self);
+
+
+/**
+ * @brief
+ */
+bool xtb_stream_client_subscribe_news(XTB_StreamClient * self);
+
+
+/**
+ * @brief
+ */
+bool xtb_stream_client_unsubscribe_news(XTB_StreamClient * self);
+
+
+/**
+ * @brief
+ */
+bool xtb_stream_client_subscribe_balance(XTB_StreamClient * self);
+
+
+/**
+ * @brief
+ */
+bool xtb_stream_client_unsubscribe_balance(XTB_StreamClient * self);
+
+
+/**
+ * @brief
+ */
+bool xtb_stream_client_subscribe_candles(XTB_StreamClient * self, char * symbol);
+
+
+/**
+ * @brief
+ */
+bool xtb_stream_client_unsubscribe_candles(XTB_StreamClient * self, char * symbol);
+
+
+/**
+ * @brief
+ */
+bool xtb_stream_client_subscribe_keep_alive(XTB_StreamClient * self);
+
+
+/**
+ * @brief
+ */
+bool xtb_stream_client_unsubscribe_keep_alive(XTB_StreamClient * self);
+
+
+/**
+ * @brief
+ */
+bool xtb_stream_client_subscribe_profits(XTB_StreamClient * self);
+
+
+/**
+ * @brief
+ */
+bool xtb_stream_client_unsubscribe_profits(XTB_StreamClient * self);
+
+
+/**
+ * @brief
+ */
+bool xtb_stream_client_subscribe_tick_prices(XTB_StreamClient * self, char * symbol, time_t min_arrive_time, int max_level);
+
+
+/**
+ * @brief
+ */
+bool xtb_stream_client_unsubscribe_tick_price(XTB_StreamClient * self, char * symbol);
+
+
+/**
+ * @brief
+ */
+bool xtb_stream_client_subscribe_trades(XTB_StreamClient * self);
+
+
+/**
+ * @brief
+ */
+bool xtb_stream_client_unsubscribe_trades(XTB_StreamClient * self);
+
+
+/**
+ * @brief
+ */
+bool xtb_stream_client_subscribe_trade_status(XTB_StreamClient * self);
+
+
+/**
+ * @brief
+ */
+bool xtb_stream_client_unsubscribe_trade_status(XTB_StreamClient * self);
+
+
+/**
+ * @brief
+ */
+bool xtb_stream_client_ping(XTB_StreamClient * self);
+
+
+/**
+ * @brief
+ */
+void xtb_stream_client_delete(XTB_StreamClient * self);
 
 
 #endif
