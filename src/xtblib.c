@@ -99,8 +99,6 @@ static char * xtb_api_receive(XTB_Api * self) {
 
 
 static inline bool xtb_api_send(XTB_Api * self, const char * msg) {
-    printf("%s\n", msg);
-
     if(SSL_write(self->ssl, msg, strlen(msg)) <= 0) {
         __assert("write command error\n");
         return false;
@@ -110,7 +108,6 @@ static inline bool xtb_api_send(XTB_Api * self, const char * msg) {
 }
 
 
-//aktuálně zabírá knihovna 32KB a spustitelný soubor 77KB
 static Json * xtb_api_transaction(XTB_Api * self, const char * cmd) {
     if(xtb_api_send(self, cmd) == false)
         return NULL;
@@ -632,9 +629,7 @@ Json * xtb_client_get_server_time(XTB_Client * self) {
 
 
 static Json * xtb_client_send_get_symbol(XTB_Client * self, char * symbol) {
-    snprintf(
-        self->cmd_buffer
-        , CMD_BUFFER_SIZE
+    snprintf(self->cmd_buffer, CMD_BUFFER_SIZE
         , "{\"command\": \"getSymbol\", \"arguments\": {\"symbol\": \"%s\"}}"
         , symbol);
 
@@ -657,9 +652,7 @@ Json * xtb_client_get_symbol(XTB_Client * self, char * symbol) {
 
 static Json * xtb_client_send_get_tick_prices(
         XTB_Client * self, size_t size, char ** symbols, int price_level, time_t timestamp) {
-    size_t pos = snprintf(
-                    self->cmd_buffer
-                    , CMD_BUFFER_SIZE
+    size_t pos = snprintf(self->cmd_buffer, CMD_BUFFER_SIZE
                     , "{\"command\": \"getTickPrices\", \"arguments\": "
                       "{\"level\": %d, \"symbols\": ["
                     , price_level);
@@ -689,9 +682,7 @@ Json * xtb_client_get_tick_prices(
 
 
 static Json * xtb_client_send_get_news(XTB_Client * self, time_t start, time_t end) {
-    snprintf(
-        self->cmd_buffer
-        , CMD_BUFFER_SIZE
+    snprintf(self->cmd_buffer, CMD_BUFFER_SIZE
         , "{\"command\": \"getNews\", \"arguments\": {\"end\": %ld, \"start\": %ld}}"
         , end, start);
 
@@ -726,9 +717,7 @@ Json * xtb_client_get_version(XTB_Client * self) {
 
 
 static Json * xtb_client_send_get_trades(XTB_Client * self, bool opened_only) {
-    snprintf(
-        self->cmd_buffer
-        , CMD_BUFFER_SIZE
+    snprintf(self->cmd_buffer, CMD_BUFFER_SIZE
         , "{\"command\": \"getTrades\", \"arguments\": {\"openedOnly\": %s}}"
         , opened_only ? "true" : "false");
 
@@ -750,9 +739,7 @@ Json * xtb_client_get_trades(XTB_Client * self, bool opened_only) {
 
 
 static Json * xtb_client_send_get_trade_records(XTB_Client * self, size_t size, char ** orders) {
-    size_t pos = snprintf(
-                    self->cmd_buffer
-                    , CMD_BUFFER_SIZE
+    size_t pos = snprintf(self->cmd_buffer, CMD_BUFFER_SIZE
                     , "{\"command\": \"getTradeRecords\", \"arguments\": {\"orders\": [");
 
     for(size_t i = 0; i < size; i++) {
@@ -779,12 +766,9 @@ Json * xtb_client_get_trade_records(XTB_Client * self, size_t size, char ** orde
 
 
 static Json * xtb_client_send_get_trade_history(XTB_Client * self, time_t start, time_t end) {
-    snprintf(
-        self->cmd_buffer
-        , CMD_BUFFER_SIZE
+    snprintf(self->cmd_buffer, CMD_BUFFER_SIZE
         , "{\"command\": \"getTradesHistory\", \"arguments\": {\"end\": %ld, \"start\": %ld}}"
-        , end
-        , start);
+        , end, start);
 
     return xtb_api_transaction(&self->api, self->cmd_buffer);
 }
@@ -804,9 +788,7 @@ Json * xtb_client_get_trade_history(XTB_Client * self, time_t start, time_t end)
 
 
 static Json * xtb_client_send_trade_transaction_status(XTB_Client * self, unsigned long order) {
-    snprintf(
-        self->cmd_buffer
-        , CMD_BUFFER_SIZE
+    snprintf(self->cmd_buffer, CMD_BUFFER_SIZE
         , "{\"command\": \"tradeTransactionStatus\", \"arguments\": {\"order\": %ld}}"
         , order);
 
@@ -841,9 +823,7 @@ Json * xtb_client_get_user_data(XTB_Client * self) {
 
 
 static Json * xtb_client_send_get_trading_hours(XTB_Client * self, size_t size, char ** symbols) {
-    size_t pos = snprintf(
-                    self->cmd_buffer
-                    , CMD_BUFFER_SIZE
+    size_t pos = snprintf(self->cmd_buffer, CMD_BUFFER_SIZE
                     , "{\"command\": \"getTradingHours\", \"arguments\": {\"symbols\": [");
 
     for(size_t i = 0; i < size; i ++) {
@@ -959,9 +939,7 @@ Json * xtb_client_check_if_market_open(XTB_Client * self, size_t size, char ** s
 static Json * xtb_client_send_trade_transaction(
         XTB_Client * self, char * symbol, XTB_TransType type, XTB_TransMode mode, float price, float volume, int offset
         , float sl, float tp, time_t expiration, char * order, char * custom_comment) {
-    size_t pos = snprintf(
-                    self->cmd_buffer
-                    , CMD_BUFFER_SIZE
+    size_t pos = snprintf(self->cmd_buffer, CMD_BUFFER_SIZE
                     , "{\"command\": \"tradeTransaction\", \"arguments\": {\"tradeTransInfo\": {\"cmd\": %d", mode);
 
     if(custom_comment != NULL) {
@@ -1024,12 +1002,15 @@ Json * xtb_client_open_trade(XTB_Client * self, char * symbol, XTB_TransMode mod
         return NULL;
     }
 
-    float price = atof((mode == XTB_TransMode_BUY) ? json_lookup(candle, "ask")->string : json_lookup(candle, "bid")->string);
+    float price = atof((mode == XTB_TransMode_BUY) ? 
+                        json_lookup(candle, "ask")->string : 
+                        json_lookup(candle, "bid")->string);
 
     json_delete(candle);
 
     Json * result = 
-        xtb_client_trade_transaction(self, symbol, NULL, mode, 0, 0, NULL, price, tp, sl, XTB_TransType_OPEN, volume);
+        xtb_client_trade_transaction(
+                self, symbol, NULL, mode, 0, 0, NULL, price, tp, sl, XTB_TransType_OPEN, volume);
 
     return result;
 }
@@ -1309,7 +1290,7 @@ bool xtb_stream_client_ping(XTB_StreamClient * self) {
 }
 
 
-void xtb_scream_client_delete(XTB_StreamClient * self) {
+void xtb_stream_client_delete(XTB_StreamClient * self) {
     if(self != NULL) {
         /*
          * unconnect stream client from linked list

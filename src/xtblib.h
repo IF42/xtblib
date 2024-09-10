@@ -329,7 +329,8 @@ typedef struct {
 /**
  * @brief
  */
-XTB_StreamClient * xtb_stream_client_new(XTB_Client * self, StreamClientCallback * callback, void * param);
+XTB_StreamClient * xtb_stream_client_new(
+        XTB_Client * self, StreamClientCallback * callback, void * param);
 
 
 /**
@@ -401,7 +402,8 @@ bool xtb_stream_client_unsubscribe_profits(XTB_StreamClient * self);
 /**
  * @brief
  */
-bool xtb_stream_client_subscribe_tick_prices(XTB_StreamClient * self, char * symbol, time_t min_arrive_time, int max_level);
+bool xtb_stream_client_subscribe_tick_prices(
+        XTB_StreamClient * self, char * symbol, time_t min_arrive_time, int max_level);
 
 
 /**
@@ -447,3 +449,8 @@ void xtb_stream_client_delete(XTB_StreamClient * self);
 
 
 #endif
+
+
+
+
+

@@ -1,12 +1,20 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -pedantic -Ofast $$(pkg-config --cflags openssl) -I/usr/include
-LIBS = $$(pkg-config --libs openssl) -lm -lthr -ljson -lvector
+LIBS = $$(pkg-config --libs openssl) -lm -lthr -ljson 
 
-ifeq ($(OS),Windows_NT)
-	LIBS += 
+INCLUDE_PATH=
+LIB_PATH=
+
+
+ifeq ($(UNAME), Linux)	
+	INCLUDE_PATH+=/usr/include/
+	LIB_PATH+=/usr/lib64/
 else
-	LIBS += 
+	INCLUDE_PATH+=/usr/include/
+	LIB_PATH+=/usr/lib/
 endif
+
+
 
 TARGET = libxtblib.a
 CACHE = .cache
@@ -15,8 +23,6 @@ OUTPUT = $(CACHE)/release
 ID = 50285159
 PASS = 4xl74fx0.H
 
-INCLUDE_PATH = /usr/include
-LIB_PATH = /usr/lib64
 
 MODULES += xtblib.o
 TEST += test.o

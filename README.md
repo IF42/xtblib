@@ -1,6 +1,8 @@
 # xtblib
 Library for communication via XTB web api with XTB trading broker
 
+# TODO: 
+* api documentation
 
 # Links
 * https://aticleworld.com/ssl-server-client-using-openssl-in-c/
